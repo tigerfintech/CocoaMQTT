@@ -110,25 +110,41 @@ func unsignedToSigned(unsign: NSInteger, size: NSInteger) -> (Int){
 }
 
 
-func unsignedByteToString(data:[UInt8], offset:Int) -> (resStr: String, newOffset: Int)?{
+func unsignedByteToString(data: [UInt8], offset: Int) -> (resStr: String, newOffset: Int)? {
     var newOffset = offset
 
-    if offset + 1 > data.count {
+    /// 至少需要两个字节读取 length
+    /// 下面的调用中使用了 formatInt.formatUint16 ，在实现里面读取了2个字节 data[offset] 和 data[offset + 1]
+    /// (unsignedBytesToInt(data0: data[offset], data1: data[offset + 1]), offset + 2)
+    /// 所以这里最少也得有2个字节的长度，否则在读取的时候有可能会越界
+    guard offset + 2 <= data.count else {
         return nil
     }
 
-    var length = 0
-    if let comRes = integerCompute(data: data, formatType: formatInt.formatUint16.rawValue, offset: newOffset) {
-        length = comRes.res
-        newOffset = comRes.newOffset
+    guard let comRes = integerCompute(data: data, formatType: formatInt.formatUint16.rawValue, offset: newOffset) else {
+        return nil
     }
 
+    let length = comRes.res
+    newOffset = comRes.newOffset
 
-    var stringData = Data()
-    for _ in 0 ..< length {
-        stringData.append(data[newOffset])
-        newOffset += 1
+    // 确保后续读取字符串不会越界
+    guard newOffset + length <= data.count else {
+        return nil
     }
+
+    /// 原写法
+    ///
+    /// for _ in 0 ..< length {
+    ///     stringData.append(data[newOffset])
+    ///     newOffset += 1
+    /// }
+    ///
+    /// 在读取data的时候，没有对newOffset做判断，可能会出现读取数据越界的情况导致崩溃
+    
+    let stringData = Data(data[newOffset..<newOffset + length])
+    newOffset += length
+
     guard let res = String(data: stringData, encoding: .utf8) else {
         return nil
     }
