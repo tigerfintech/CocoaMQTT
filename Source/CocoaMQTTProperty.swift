@@ -113,7 +113,10 @@ func unsignedToSigned(unsign: NSInteger, size: NSInteger) -> (Int){
 func unsignedByteToString(data: [UInt8], offset: Int) -> (resStr: String, newOffset: Int)? {
     var newOffset = offset
 
-    // 至少需要两个字节读取 length
+    /// 至少需要两个字节读取 length
+    /// 下面的调用中使用了 formatInt.formatUint16 ，在实现里面读取了2个字节 data[offset] 和 data[offset + 1]
+    /// (unsignedBytesToInt(data0: data[offset], data1: data[offset + 1]), offset + 2)
+    /// 所以这里最少也得有2个字节的长度，否则在读取的时候有可能会越界
     guard offset + 2 <= data.count else {
         return nil
     }
