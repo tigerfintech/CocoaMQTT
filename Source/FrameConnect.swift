@@ -211,9 +211,13 @@ extension FrameConnect {
 
 extension FrameConnect: CustomStringConvertible {
     var description: String {
+#if DEBUG
         return "CONNECT(id: \(clientID), username: \(username ?? "nil"), " +
-               "password: \(password ?? "nil"), keepAlive : \(keepAlive), " +
-               "cleansess: \(cleansess))"
+        "password: \(password ?? "nil"), keepAlive : \(keepAlive), " +
+        "cleansess: \(cleansess))"
+#else
+        return "CONNECT id: \(clientID)"
+#endif
     }
 }
 

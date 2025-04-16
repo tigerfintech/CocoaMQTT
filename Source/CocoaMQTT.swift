@@ -321,8 +321,10 @@ public class CocoaMQTT: NSObject, CocoaMQTTClient {
     }
 
     fileprivate func send(_ frame: Frame, tag: Int = 0) {
+#if DEBUG
         printDebug("SEND: \(frame)")
-        let data = frame.bytes(version: version)
+#endif
+        let data: [UInt8] = frame.bytes(version: version)
         socket.write(Data(bytes: data, count: data.count), withTimeout: 5, tag: tag)
     }
 
@@ -336,7 +338,12 @@ public class CocoaMQTT: NSObject, CocoaMQTTClient {
         connect.cleansess = cleanSession
         
         send(connect)
-        reader?.start()
+        
+        if let reader {
+            reader.start()
+        } else {
+            printError("[MQTT] reader is nil during sendConnectFrame")
+        }
     }
 
     fileprivate func nextMessageID() -> UInt16 {
