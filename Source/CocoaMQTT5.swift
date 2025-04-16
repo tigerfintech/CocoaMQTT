@@ -139,7 +139,16 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     
     public var name: String = ""
 
-    public weak var delegate: CocoaMQTT5Delegate?
+    public weak var delegate: CocoaMQTT5Delegate? {
+        didSet {
+            if let delegate, !(delegate is CocoaMQTT5Delegate) {
+                self.delegate = nil
+#if DEBUG
+                assertionFailure("CocoaMQTT5Delegate must be a subclass of CocoaMQTT5Delegate")
+#endif
+            }
+        }
+    }
 
     private var version = "5.0"
 
@@ -178,12 +187,13 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
 
     public var connState = CocoaMQTTConnState.disconnected {
         didSet {
-            __delegate_queue {
-                if self.connState == .connected {
-                    self.unhandlePingCount = 0
+            /// 虽然在 __delegate_queue 中做了weak的处理，但是并未传递到当前位置
+            __delegate_queue { strongSelf in
+                if strongSelf.connState == .connected {
+                    strongSelf.unhandlePingCount = 0
                 }
-                self.delegate?.mqtt5?(self, didStateChangeTo: self.connState)
-                self.didChangeState(self, self.connState)
+                strongSelf.delegate?.mqtt5?(strongSelf, didStateChangeTo: strongSelf.connState)
+                strongSelf.didChangeState(strongSelf, strongSelf.connState)
             }
         }
     }
@@ -465,9 +475,9 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         printDebug("ping")
         self.unhandlePingCount += 1
         send(FramePingReq(), tag: -0xC0)
-        __delegate_queue {
-            self.delegate?.mqtt5DidPing(self)
-            self.didPing(self)
+        __delegate_queue { strongSelf in
+            strongSelf.delegate?.mqtt5DidPing(strongSelf)
+            strongSelf.didPing(strongSelf)
         }
     }
 
@@ -631,10 +641,10 @@ extension CocoaMQTT5: CocoaMQTTDeliverProtocol {
 
 extension CocoaMQTT5 {
 
-    func __delegate_queue(_ fun: @escaping () -> Void) {
+    func __delegate_queue(_ fun: @escaping (CocoaMQTT5) -> Void) {
         delegateQueue.async { [weak self] in
-            guard let _ = self else { return }
-            fun()
+            guard let strongSelf = self else { return }
+            fun(strongSelf)
         }
     }
 }
