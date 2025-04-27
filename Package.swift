@@ -19,19 +19,31 @@ let package = Package(
         .package(url: "https://github.com/leeway1208/MqttCocoaAsyncSocket", from: "1.0.8"),
     ],
     targets: [
-        .target(name: "CocoaMQTT",
-                dependencies: [ "MqttCocoaAsyncSocket" ],
-                path: "Source",
-                exclude: ["CocoaMQTTWebSocket.swift"],
-                swiftSettings: [ .define("IS_SWIFT_PACKAGE")]),
-        .target(name: "CocoaMQTTWebSocket",
-                dependencies: [ "CocoaMQTT", "Starscream" ],
-                path: "Source",
-                sources: ["CocoaMQTTWebSocket.swift"],
-                swiftSettings: [ .define("IS_SWIFT_PACKAGE")]),
-        .testTarget(name: "CocoaMQTTTests",
-                    dependencies: [ "CocoaMQTT", "CocoaMQTTWebSocket" ],
-                    path: "CocoaMQTTTests",
-                    swiftSettings: [ .define("IS_SWIFT_PACKAGE")])
+        .target(
+            name: "CocoaMQTT",
+            dependencies: [ "MqttCocoaAsyncSocket" ],
+            path: "Source",
+            exclude: ["CocoaMQTTWebSocket.swift"],
+            swiftSettings: [ .define("IS_SWIFT_PACKAGE")]
+        ),
+        .target(
+            name: "CocoaMQTTWebSocket",
+            dependencies: [ "CocoaMQTT", "Starscream" ],
+            path: "Source",
+            sources: ["CocoaMQTTWebSocket.swift"],
+            swiftSettings: [ .define("IS_SWIFT_PACKAGE")]
+        ),
+        .testTarget(
+            name: "CocoaMQTTTests",
+            dependencies: [ "CocoaMQTT", "CocoaMQTTWebSocket" ],
+            path: "CocoaMQTTTests",
+            swiftSettings: [ .define("IS_SWIFT_PACKAGE")]
+        ),
+        .testTarget(
+            name: "MQTTTests",
+            dependencies: ["CocoaMQTT"],
+            path: "MQTTTests",
+            swiftSettings: [ .define("IS_SWIFT_PACKAGE")]
+        )
     ]
 )
