@@ -268,8 +268,8 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
 
     /// Enable SSL connection
     public var enableSSL: Bool {
-        get { return self.socket.enableSSL }
-        set { socket.enableSSL = newValue }
+        get { return self.socket?.enableSSL ?? false }
+        set { socket?.enableSSL = newValue }
     }
 
     ///
@@ -298,7 +298,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
 
     /// message id counter
     private var _msgid: UInt16 = 0
-    fileprivate var socket: CocoaMQTTSocketProtocol
+    fileprivate var socket: CocoaMQTTSocketProtocol?
     fileprivate var reader: CocoaMQTTReader?
 
     // Closures
@@ -346,11 +346,14 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     }
     
     deinit {
+        printInfo("!!! deinit CocoaMQTT5, self=\(Unmanaged.passUnretained(self).toOpaque())")
+
         aliveTimer?.suspend()
         autoReconnTimer?.suspend()
 
-        socket.setDelegate(nil, delegateQueue: nil)
-        socket.disconnect()
+        socket?.setDelegate(nil, delegateQueue: nil)
+        socket?.disconnect()
+        socket = nil
     }
 
     fileprivate func send(_ frame: Frame, tag: Int = 0) {
@@ -358,7 +361,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         printDebug("SEND: \(frame)")
 #endif
         let data: [UInt8] = frame.bytes(version: version)
-        socket.write(Data(bytes: data, count: data.count), withTimeout: 5, tag: tag)
+        socket?.write(Data(bytes: data, count: data.count), withTimeout: 5, tag: tag)
     }
 
     fileprivate func sendConnectFrame() {
@@ -418,6 +421,9 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     ///   - Bool: It indicates whether successfully calling socket connect function.
     ///           Not yet established correct MQTT session
     public func connect(timeout: TimeInterval) -> Bool {
+        printInfo("Connect called - self:\(Unmanaged.passUnretained(self).toOpaque()), socket:\(String(describing: socket))")
+        
+        guard let socket else { return false}
         guard connState != .connected, connState != .connecting else { return true }
         
         socket.setDelegate(self, delegateQueue: delegateQueue)
@@ -460,7 +466,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     func internal_disconnect() {
         is_internal_disconnected = true
         send(FrameDisconnect(disconnectReasonCode: CocoaMQTTDISCONNECTReasonCode.normalDisconnection), tag: -0xE0)
-        socket.disconnect()
+        socket?.disconnect()
     }
 
     func internal_disconnect_withProperties(reasonCode : CocoaMQTTDISCONNECTReasonCode,userProperties : [String: String] ) {
@@ -468,7 +474,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         var frameDisconnect = FrameDisconnect(disconnectReasonCode: reasonCode)
         frameDisconnect.userProperties = userProperties
         send(frameDisconnect, tag: -0xE0)
-        socket.disconnect()
+        socket?.disconnect()
     }
     /// Send a PING request to broker
     public func ping() {
@@ -720,6 +726,9 @@ extension CocoaMQTT5: CocoaMQTTSocketDelegate {
         // Start reconnector once socket error occurred
         printInfo("Try reconnect to server after \(reconnectTimeInterval)s")
         autoReconnTimer = CocoaMQTTTimer.after(Double(reconnectTimeInterval), name: "autoReconnTimer", { [weak self] in
+            
+            printInfo(">>> autoReconnect triggered, self=\(String(describing: self))")
+
             guard let self = self else { return }
             if self.connState == .connected { return }
             if self.reconnectTimeInterval < self.maxAutoReconnectTimeInterval {
