@@ -148,6 +148,14 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
         }
     }
     
+    public func isTCPConnected() -> Bool {
+        return connection != nil
+    }
+    
+    public func isTCPDisConnected() -> Bool {
+        return connection == nil
+    }
+    
     internal var delegate: CocoaMQTTSocketDelegate?
     internal var delegateQueue: DispatchQueue?
     internal var internalQueue = DispatchQueue(label: "CocoaMQTTWebSocket")
@@ -410,7 +418,7 @@ public extension CocoaMQTTWebSocket {
         }
         
         public init(request: URLRequest) {
-            reference = WebSocket(request: request, protocols: ["mqtt"], stream: FoundationStream())
+            reference = WebSocket(request: request)
             super.init()
             reference.delegate = self
         }
@@ -431,38 +439,26 @@ public extension CocoaMQTTWebSocket {
     }
 }
 
-extension CocoaMQTTWebSocket.StarscreamConnection: SSLTrustValidator {
-    public func isValid(_ trust: SecTrust, domain: String?) -> Bool {
-        guard let delegate = self.delegate else { return false }
-        
-        var shouldAccept = false
-        let semaphore = DispatchSemaphore(value: 0)
-        delegate.connection(self, didReceive: trust) { result in
-            shouldAccept = result
-            semaphore.signal()
-        }
-        semaphore.wait()
-        
-        return shouldAccept
-    }
-}
-
 extension CocoaMQTTWebSocket.StarscreamConnection: WebSocketDelegate {
-
-    public func websocketDidConnect(socket: WebSocketClient) {
-        delegate?.connectionOpened(self)
-    }
-
-    public func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
-        delegate?.connectionClosed(self, withError: error)
-    }
-
-    public func websocketDidReceiveMessage(socket: WebSocketClient, text: String) {
-        delegate?.connection(self, receivedString: text)
-    }
-
-    public func websocketDidReceiveData(socket: WebSocketClient, data: Data) {
-        delegate?.connection(self, receivedData: data)
+    
+    public func didReceive(event: WebSocketEvent, client: WebSocketClient) {
+        switch event {
+        case .connected(_):
+            delegate?.connectionOpened(self)
+        case .disconnected(let reason, let code):
+            let error = NSError(domain: "WebSocket", code: Int(code), userInfo: [NSLocalizedDescriptionKey: reason])
+            delegate?.connectionClosed(self, withError: error)
+        case .text(let string):
+            delegate?.connection(self, receivedString: string)
+        case .binary(let data):
+            delegate?.connection(self, receivedData: data)
+        case .error(let error):
+            delegate?.connectionClosed(self, withError: error)
+        case .cancelled:
+            delegate?.connectionClosed(self, withError: nil)
+        case .viabilityChanged(_), .reconnectSuggested(_), .pong(_), .ping(_), .peerClosed:
+            break
+        }
     }
 }
 
