@@ -69,16 +69,22 @@ func integerCompute(data:[UInt8], formatType:Int, offset:Int) -> (res: Int, newO
 
     switch formatType {
     case formatInt.formatUint8.rawValue:
+        guard offset < data.count else { return nil }
         return (unsignedByteToInt(data: data[offset]), offset + 1)
     case formatInt.formatUint16.rawValue:
+        guard offset + 1 < data.count else { return nil }
         return (unsignedBytesToInt(data0: data[offset], data1: data[offset + 1]), offset + 2)
     case formatInt.formatUint32.rawValue:
+        guard offset + 3 < data.count else { return nil }
         return (unsignedBytesToInt(data0: data[offset], data1: data[offset + 1], data2: data[offset + 2], data3: data[offset + 3]), offset + 4)
     case formatInt.formatSint8.rawValue:
+        guard offset < data.count else { return nil }
         return (unsignedToSigned(unsign: unsignedByteToInt(data: data[offset]), size: 8), offset + 1)
     case formatInt.formatSint16.rawValue:
+        guard offset + 1 < data.count else { return nil }
         return (unsignedToSigned(unsign: unsignedBytesToInt(data0: data[offset], data1: data[offset + 1]), size: 16), offset + 2)
     case formatInt.formatSint32.rawValue:
+        guard offset + 3 < data.count else { return nil }
         return (unsignedToSigned(unsign: unsignedBytesToInt(data0: data[offset], data1: data[offset + 1], data2: data[offset + 2], data3: data[offset + 3]), size: 32), offset + 4)
     default:
         printDebug("integerCompute nothing")
