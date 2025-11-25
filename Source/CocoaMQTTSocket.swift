@@ -113,7 +113,8 @@ extension CocoaMQTTSocket: MGCDAsyncSocketDelegate {
              }
              sock.startTLS(setting)
          } else {
-            delegate?.socketConnected(self)
+            guard let strongDelegate = delegate else { return }
+            strongDelegate.socketConnected(self)
          }
     }
 
@@ -127,20 +128,24 @@ extension CocoaMQTTSocket: MGCDAsyncSocketDelegate {
 
     public func socketDidSecure(_ sock: MGCDAsyncSocket) {
         printDebug("socket did secure")
-        delegate?.socketConnected(self)
+        guard let strongDelegate = delegate else { return }
+        strongDelegate.socketConnected(self)
     }
 
     public func socket(_ sock: MGCDAsyncSocket, didWriteDataWithTag tag: Int) {
         printDebug("socket wrote data \(tag)")
-        delegate?.socket(self, didWriteDataWithTag: tag)
+        guard let strongDelegate = delegate else { return }
+        strongDelegate.socket(self, didWriteDataWithTag: tag)
     }
 
     public func socket(_ sock: MGCDAsyncSocket, didRead data: Data, withTag tag: Int) {
-        delegate?.socket(self, didRead: data, withTag: tag)
+        guard let strongDelegate = delegate else { return }
+        strongDelegate.socket(self, didRead: data, withTag: tag)
     }
 
     public func socketDidDisconnect(_ sock: MGCDAsyncSocket, withError err: Error?) {
         printDebug("socket disconnected")
-        delegate?.socketDidDisconnect(self, withError: err)
+        guard let strongDelegate = delegate else { return }
+        strongDelegate.socketDidDisconnect(self, withError: err)
     }
 }

@@ -172,6 +172,11 @@ func unsignedByteToBinary(data:[UInt8], offset:Int) -> (resStr: [UInt8], newOffs
         newOffset = comRes.newOffset
     }
 
+    // 边界检查：确保有足够的数据读取
+    guard newOffset + length <= data.count else {
+        printError("unsignedByteToBinary: insufficient data, need \(length) bytes but only \(data.count - newOffset) bytes available")
+        return nil
+    }
 
     var res = [UInt8]()
     for _ in 0 ..< length {

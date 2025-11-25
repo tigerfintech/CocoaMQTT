@@ -365,6 +365,11 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     }
 
     fileprivate func sendConnectFrame() {
+        // 防止在对象释放过程中被调用
+        guard socket != nil else {
+            printWarning("[MQTT] sendConnectFrame called but socket is nil, ignoring")
+            return
+        }
 
         var connect = FrameConnect(clientID: clientID)
         connect.keepAlive = keepAlive
@@ -426,6 +431,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         guard let socket else { return false}
         guard connState != .connected, connState != .connecting else { return true }
         
+        // 重新设置 delegate，确保旧的连接回调不会影响新连接
         socket.setDelegate(self, delegateQueue: delegateQueue)
         autoReconnTimer = nil
         reader = CocoaMQTTReader(socket: socket, delegate: self)
