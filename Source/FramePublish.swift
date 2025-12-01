@@ -227,6 +227,7 @@ extension FramePublish: InitialWithBytes {
 
             // MQTT 5.0
             self.mqtt5Topic = data.topic
+            self.topic = data.topic  // 同时设置 topic 字段以保持兼容性
             self.packetIdentifier = data.packetIdentifier
             self.publishRecProperties = data
 

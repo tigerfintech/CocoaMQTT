@@ -10,6 +10,17 @@ import XCTest
 @testable import CocoaMQTT
 
 final class CocoaMQTTCrashFixTests: XCTestCase {
+    
+    override func setUp() {
+        super.setUp()
+        // 保存原始状态
+    }
+    
+    override func tearDown() {
+        // 清理：确保不影响其他测试
+        FramePublish.isMqtt5 = false
+        super.tearDown()
+    }
 
     // MARK: - 测试 integerCompute 边界检查修复
     
@@ -279,16 +290,13 @@ final class CocoaMQTTCrashFixTests: XCTestCase {
         let iterations = 50
         var completedCount = 0
         
-        for i in 0..<iterations {
+        for _ in 0..<iterations {
             DispatchQueue.global().async {
                 autoreleasepool {
-                    let mqtt = CocoaMQTT5(clientID: "test-\(i)")
+                    // 不使用 CocoaMQTT5.connect() 以避免修改全局静态变量 FramePublish.isMqtt5
+                    // 这会影响其他测试
                     
-                    // 快速创建和释放
-                    _ = mqtt.connect()
-                    mqtt.disconnect()
-                    
-                    // 解析一些数据包
+                    // 解析一些数据包来测试并发安全
                     let decoder = MqttDecodePublish()
                     decoder.isMqtt5 = true
                     

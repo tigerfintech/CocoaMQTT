@@ -13,10 +13,12 @@ class CocoaMQTTDeliverTests: XCTestCase {
 
     override func setUp() {
         // Put setup code here. This method is called before the invocation of each test method in the class.
+        FramePublish.isMqtt5 = false  // 确保测试使用 MQTT 3.1.1 模式
     }
 
     override func tearDown() {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
+        FramePublish.isMqtt5 = false  // 清理状态
     }
 
     func testSerialDeliver() {
