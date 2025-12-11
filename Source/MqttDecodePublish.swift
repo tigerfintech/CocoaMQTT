@@ -87,6 +87,10 @@ public class MqttDecodePublish: NSObject {
                 switch propertyName.rawValue {
                 // 3.3.2.3.2 Payload Format Indicator
                 case CocoaMQTTPropertyName.payloadFormatIndicator.rawValue:
+                    guard dataIndex < publishData.count else {
+                        printError("MqttDecodePublish: dataIndex out of bounds when reading payloadFormatIndicator")
+                        return
+                    }
                     if publishData[dataIndex] & 0b0000_0001 > 0 {
                         payloadFormatIndicator = .utf8
                     } else {

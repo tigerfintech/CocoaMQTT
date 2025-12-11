@@ -187,8 +187,9 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
 
     public var connState = CocoaMQTTConnState.disconnected {
         didSet {
-            /// 虽然在 __delegate_queue 中做了weak的处理，但是并未传递到当前位置
-            __delegate_queue { strongSelf in
+            delegateQueue.async { [weak self] in
+                guard let strongSelf = self else { return }
+                
                 if strongSelf.connState == .connected {
                     strongSelf.unhandlePingCount = 0
                 }
@@ -365,6 +366,11 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
     }
 
     fileprivate func sendConnectFrame() {
+        // 防止在对象释放过程中被调用，在当前方法执行之后，会有使用到socket的地方
+        guard socket != nil else {
+            printWarning("[MQTT] sendConnectFrame called but socket is nil, ignoring")
+            return
+        }
 
         var connect = FrameConnect(clientID: clientID)
         connect.keepAlive = keepAlive
@@ -426,6 +432,7 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         guard let socket else { return false}
         guard connState != .connected, connState != .connecting else { return true }
         
+        // 重新设置 delegate，确保旧的连接回调不会影响新连接
         socket.setDelegate(self, delegateQueue: delegateQueue)
         autoReconnTimer = nil
         reader = CocoaMQTTReader(socket: socket, delegate: self)
@@ -481,7 +488,10 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         printDebug("ping")
         self.unhandlePingCount += 1
         send(FramePingReq(), tag: -0xC0)
-        __delegate_queue { strongSelf in
+        
+        delegateQueue.async { [weak self] in
+            guard let strongSelf = self else { return }
+            
             strongSelf.delegate?.mqtt5DidPing(strongSelf)
             strongSelf.didPing(strongSelf)
         }
@@ -535,14 +545,15 @@ public class CocoaMQTT5: NSObject, CocoaMQTT5Client {
         frame.publishProperties = properties
         frame.retained = message.retained
 
-        delegateQueue.async {
-            self.sendingMessages[msgid] = message
+        delegateQueue.async { [weak self] in
+            guard let strongSelf = self else { return }
+            strongSelf.sendingMessages[msgid] = message
         }
 
         // Push frame to deliver message queue
         guard deliver.add(frame) else {
-            delegateQueue.async {
-                self.sendingMessages.removeValue(forKey: msgid)
+            delegateQueue.async { [weak self] in
+                self?.sendingMessages.removeValue(forKey: msgid)
             }
             return -1
         }
@@ -641,16 +652,6 @@ extension CocoaMQTT5: CocoaMQTTDeliverProtocol {
         } else if let pubrel = frame as? FramePubRel {
             // -- Send PUBREL
             send(pubrel, tag: Int(pubrel.msgid))
-        }
-    }
-}
-
-extension CocoaMQTT5 {
-
-    func __delegate_queue(_ fun: @escaping (CocoaMQTT5) -> Void) {
-        delegateQueue.async { [weak self] in
-            guard let strongSelf = self else { return }
-            fun(strongSelf)
         }
     }
 }
@@ -773,7 +774,8 @@ extension CocoaMQTT5: CocoaMQTTReaderDelegate {
 
             aliveTimer = CocoaMQTTTimer.every(interval, name: "aliveTimer") { [weak self] in
                 guard let self = self else { return }
-                self.delegateQueue.async {
+                self.delegateQueue.async { [weak self] in
+                    guard let self = self else { return }
                     guard self.connState == .connected else {
                         self.aliveTimer = nil
                         return

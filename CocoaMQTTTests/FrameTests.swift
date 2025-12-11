@@ -10,6 +10,16 @@ import XCTest
 @testable import CocoaMQTT
 
 class FrameTests: XCTestCase {
+    
+    override func setUp() {
+        super.setUp()
+        FramePublish.isMqtt5 = false  // 确保测试使用 MQTT 3.1.1 模式
+    }
+    
+    override func tearDown() {
+        FramePublish.isMqtt5 = false  // 清理状态
+        super.tearDown()
+    }
 
     func testFrameConnect() {
         var conn = FrameConnect(clientID: "sheep")

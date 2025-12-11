@@ -132,11 +132,13 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
     }
     
     public func write(_ data: Data, withTimeout timeout: TimeInterval, tag: Int) {
-        internalQueue.async {
+        internalQueue.async { [weak self] in
+            guard let self = self else { return }
             let newWrite = WriteItem(tag: tag, timeout: (timeout > 0.0) ? .now() + timeout : .distantFuture)
             self.scheduledWrites.insert(newWrite)
             self.checkScheduledWrites()
-            self.connection?.write(data: data) { possibleError in
+            self.connection?.write(data: data) { [weak self] possibleError in
+                guard let self = self else { return }
                 if let error = possibleError {
                     self.closeConnection(withError: error)
                 } else {
@@ -146,6 +148,14 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
                 }
             }
         }
+    }
+    
+    public func isTCPConnected() -> Bool {
+        return connection != nil
+    }
+    
+    public func isTCPDisConnected() -> Bool {
+        return connection == nil
     }
     
     internal var delegate: CocoaMQTTSocketDelegate?
@@ -169,7 +179,9 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
     
     private func closeConnection(withError error: Error?) {
         reset()
-        __delegate_queue {
+        
+        delegateQueue?.async { [weak self] in
+            guard let self = self else { return }
             self.delegate?.socketDidDisconnect(self, withError: error)
         }
     }
@@ -218,7 +230,8 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
             let readRange = readBuffer.startIndex..<Data.Index(nextRead.length)
             let readData = readBuffer.subdata(in: readRange)
             readBuffer.removeSubrange(readRange)
-            delegateQueue.async {
+            delegateQueue.async { [weak self] in
+                guard let self = self else { return }
                 theDelegate.socket(self, didRead: readData, withTag: nextRead.tag)
             }
         }
@@ -260,7 +273,9 @@ public class CocoaMQTTWebSocket: CocoaMQTTSocketProtocol {
 extension CocoaMQTTWebSocket: CocoaMQTTWebSocketConnectionDelegate {
     public func urlSessionConnection(_ conn: CocoaMQTTWebSocketConnection, didReceiveTrust trust: SecTrust, didReceiveChallenge challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if let del = delegate {
-            __delegate_queue {
+            delegateQueue?.async { [weak self] in
+                guard let self = self else { return }
+                
                 del.socketUrlSession(self, didReceiveTrust: trust, didReceiveChallenge: challenge, completionHandler: completionHandler)
             }
         } else {
@@ -270,7 +285,8 @@ extension CocoaMQTTWebSocket: CocoaMQTTWebSocketConnectionDelegate {
     
     public func connection(_ conn: CocoaMQTTWebSocketConnection, didReceive trust: SecTrust, completionHandler: @escaping (Bool) -> Void) {
         if let del = delegate {
-            __delegate_queue {
+            delegateQueue?.async { [weak self] in
+                guard let self = self else { return }
                 del.socket(self, didReceive: trust, completionHandler: completionHandler)
             }
         } else {
@@ -282,7 +298,8 @@ extension CocoaMQTTWebSocket: CocoaMQTTWebSocketConnectionDelegate {
         guard conn.isEqual(connection) else { return }
         guard let delegate = delegate else { return }
         guard let delegateQueue = delegateQueue else { return }
-        delegateQueue.async {
+        delegateQueue.async { [weak self] in
+            guard let self = self else { return }
             delegate.socketConnected(self)
         }
     }
@@ -410,7 +427,7 @@ public extension CocoaMQTTWebSocket {
         }
         
         public init(request: URLRequest) {
-            reference = WebSocket(request: request, protocols: ["mqtt"], stream: FoundationStream())
+            reference = WebSocket(request: request)
             super.init()
             reference.delegate = self
         }
@@ -431,49 +448,25 @@ public extension CocoaMQTTWebSocket {
     }
 }
 
-extension CocoaMQTTWebSocket.StarscreamConnection: SSLTrustValidator {
-    public func isValid(_ trust: SecTrust, domain: String?) -> Bool {
-        guard let delegate = self.delegate else { return false }
-        
-        var shouldAccept = false
-        let semaphore = DispatchSemaphore(value: 0)
-        delegate.connection(self, didReceive: trust) { result in
-            shouldAccept = result
-            semaphore.signal()
-        }
-        semaphore.wait()
-        
-        return shouldAccept
-    }
-}
-
 extension CocoaMQTTWebSocket.StarscreamConnection: WebSocketDelegate {
-
-    public func websocketDidConnect(socket: WebSocketClient) {
-        delegate?.connectionOpened(self)
-    }
-
-    public func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
-        delegate?.connectionClosed(self, withError: error)
-    }
-
-    public func websocketDidReceiveMessage(socket: WebSocketClient, text: String) {
-        delegate?.connection(self, receivedString: text)
-    }
-
-    public func websocketDidReceiveData(socket: WebSocketClient, data: Data) {
-        delegate?.connection(self, receivedData: data)
-    }
-}
-
-// MARK: - Helper
-
-extension CocoaMQTTWebSocket {
     
-    func __delegate_queue(_ fun: @escaping () -> Void) {
-        delegateQueue?.async { [weak self] in
-            guard let _ = self else { return }
-            fun()
+    public func didReceive(event: WebSocketEvent, client: WebSocketClient) {
+        switch event {
+        case .connected(_):
+            delegate?.connectionOpened(self)
+        case .disconnected(let reason, let code):
+            let error = NSError(domain: "WebSocket", code: Int(code), userInfo: [NSLocalizedDescriptionKey: reason])
+            delegate?.connectionClosed(self, withError: error)
+        case .text(let string):
+            delegate?.connection(self, receivedString: string)
+        case .binary(let data):
+            delegate?.connection(self, receivedData: data)
+        case .error(let error):
+            delegate?.connectionClosed(self, withError: error)
+        case .cancelled:
+            delegate?.connectionClosed(self, withError: nil)
+        case .viabilityChanged(_), .reconnectSuggested(_), .pong(_), .ping(_), .peerClosed:
+            break
         }
     }
 }
